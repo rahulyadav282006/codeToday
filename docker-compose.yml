@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_URL=http://localhost:5000/api
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/codemaster
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET_KEY=super-secret-jwt-key-minimum-32-characters-long
+      - JWT_REFRESH_SECRET=refresh-secret-key-also-32-characters-min
+      - FRONTEND_URL=http://localhost:5173
+      - CSRF_SECRET=csrf-secret-key-32chars
+      - FLASK_ENV=development
+    depends_on:
+      - mongodb
+      - redis
+    volumes:
+      - ./backend:/app
+
+  mongodb:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  sandbox:
+    build: ./sandbox
+    ports:
+      - "8080:8080"
+
+volumes:
+  mongo_data:
