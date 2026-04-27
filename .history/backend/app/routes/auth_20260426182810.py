@@ -89,14 +89,7 @@ def login():
     if not user:
         return jsonify({'message': 'Invalid credentials'}), 401
  
-    # if not bcrypt.checkpw(password.encode(), user['password_hash']):
-    #     return jsonify({'message': 'Invalid credentials'}), 401
-    stored_pw = user['password_hash']
-
-    if isinstance(stored_pw, str):
-        stored_pw = stored_pw.encode('utf-8')
-
-    if not bcrypt.checkpw(password.encode(), stored_pw):
+    if not bcrypt.checkpw(password.encode(), user['password_hash']):
         return jsonify({'message': 'Invalid credentials'}), 401
  
     users.update_one({'_id': user['_id']}, {'$set': {'last_login': datetime.now(timezone.utc)}})

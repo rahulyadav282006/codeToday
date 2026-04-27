@@ -21,8 +21,7 @@ def clear():
     print("✓ Cleared existing data")
  
 def seed_user():
-    # pw = bcrypt.hashpw(b'Password123!', bcrypt.gensalt())
-    pw = bcrypt.hashpw("Password123!".encode(), bcrypt.gensalt())
+    pw = bcrypt.hashpw(b'Password123!', bcrypt.gensalt())
     result = db.users.insert_one({
         'email': 'dev@syntax.io',
         'password_hash': pw,
