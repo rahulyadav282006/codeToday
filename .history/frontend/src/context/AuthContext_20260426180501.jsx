@@ -36,36 +36,31 @@ export function AuthProvider({ children }) {
     }
   }, [logout])
 
-useEffect(() => {
-  const verify = async () => {
-    const storedToken = localStorage.getItem('access_token');
-    const storedUser = localStorage.getItem('user');
-
-    if (!storedToken) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const res = await api.get('/auth/verify', {
-        headers: {
-          Authorization: `Bearer ${storedToken}`
+  useEffect(() => {
+    const verify = async () => {
+      const storedToken = localStorage.getItem('access_token')
+      const storedUser = localStorage.getItem('user')
+      if (!storedToken) { setLoading(false); return }
+      try {
+        const res = await api.get('/auth/verify')
+        setUser(res.data.user)
+        setIsAuthenticated(true)
+        setToken(storedToken)
+      } catch (err) {
+        if (err.response?.status === 401) {
+          const newToken = await refreshToken()
+          if (newToken) {
+            setUser(JSON.parse(storedUser || '{}'))
+            setIsAuthenticated(true)
+          }
+        } else {
+          logout()
         }
-      });
-
-      setUser(res.data.user);
-      setIsAuthenticated(true);
-      setToken(storedToken);
-
-    } catch (err) {
-      logout();
+      }
+      setLoading(false)
     }
-
-    setLoading(false);
-  };
-
-  verify();
-}, []);
+    verify()
+  }, [])
 
   // Auto-refresh 24h before expiry
   useEffect(() => {
@@ -116,31 +111,3 @@ export const useAuth = () => {
   if (!ctx) throw new Error('useAuth must be inside AuthProvider')
   return ctx
 }
-
-
-
-  // useEffect(() => {
-  //   const verify = async () => {
-  //     const storedToken = localStorage.getItem('access_token')
-  //     const storedUser = localStorage.getItem('user')
-  //     if (!storedToken) { setLoading(false); return }
-  //     try {
-  //       const res = await api.get('/auth/verify')
-  //       setUser(res.data.user)
-  //       setIsAuthenticated(true)
-  //       setToken(storedToken)
-  //     } catch (err) {
-  //       if (err.response?.status === 401) {
-  //         const newToken = await refreshToken()
-  //         if (newToken) {
-  //           setUser(JSON.parse(storedUser || '{}'))
-  //           setIsAuthenticated(true)
-  //         }
-  //       } else {
-  //         logout()
-  //       }
-  //     }
-  //     setLoading(false)
-  //   }
-  //   verify()
-  // }, [])
