@@ -79,6 +79,3 @@ redis_data/
 tmp/
 temp/
 *.tmp
-
-# Local History
-.history/
