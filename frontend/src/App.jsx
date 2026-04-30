@@ -16,7 +16,7 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/course/:courseId/modules" element={
-          <ProtectedRoute><ModulePage /></ProtectedRoute>
+          <ModulePage />
         } />
         <Route path="/course/:courseId/modules/:moduleId/submodules" element={
           <ProtectedRoute><SubModulePage /></ProtectedRoute>
