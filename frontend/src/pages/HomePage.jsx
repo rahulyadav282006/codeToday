@@ -48,15 +48,9 @@ export default function HomePage() {
   const [showLogin, setShowLogin] = useState(false)
   const [pendingCourse, setPendingCourse] = useState(null)
 
-  const handleExplorePath = (course) => {
-    if (!isAuthenticated) {
-      setPendingCourse(course)
-      setShowLogin(true)
-    } else {
-      navigate(`/course/${course.slug}/modules`)
-    }
-  }
-
+const handleExplorePath = (course) => {
+  navigate(`/course/${course.slug}/modules`)
+}
   const handleLoginSuccess = () => {
     if (pendingCourse) navigate(`/course/${pendingCourse.slug}/modules`)
   }
@@ -85,7 +79,7 @@ export default function HomePage() {
             Master the world's most in-demand languages through interactive coding challenges, editorial-grade lessons, and a vibrant community of builders. Learning has never felt this premium.
           </p>
           <div style={{ display: 'flex', gap: 16 }}>
-            <button onClick={() => isAuthenticated ? navigate('/course/python-mastery/modules') : setShowLogin(true)}
+            <button onClick={() => navigate('/course/python-mastery/modules')}
               style={{
                 padding: '14px 28px', background: '#3730a3', color: '#fff',
                 border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 600,
@@ -311,3 +305,21 @@ export default function HomePage() {
     </div>
   )
 }
+
+
+
+//  30 4 20 26
+
+
+  // const handleExplorePath = (course) => {
+  //   if (!isAuthenticated) {
+  //     setPendingCourse(course)
+  //     setShowLogin(true)
+  //   } else {
+  //     navigate(`/course/${course.slug}/modules`)
+  //   }
+  // }
+
+
+
+  //    82 hero section        <button onClick={() => isAuthenticated ? navigate('/course/python-mastery/modules') : setShowLogin(true)}
