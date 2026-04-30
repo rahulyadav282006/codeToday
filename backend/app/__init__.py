@@ -15,18 +15,37 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # ── CORS: allow everything so the browser never gets blocked ──────
-    CORS(app, resources={r"/*": {"origins": "*"}},
-         supports_credentials=False,
-         allow_headers=["Content-Type", "Authorization"],
+    # ── CORS: restrict origins to frontend and allow required headers ──────
+    CORS(app, resources={r"/api/*": {"origins": Config.ALLOWED_ORIGINS}},
+         supports_credentials=True,
+         allow_headers=["Content-Type", "Authorization", "X-CSRF-Token", "X-Requested-With", "X-Frontend-Origin"],
          methods=["GET","POST","PUT","DELETE","OPTIONS"])
 
     @app.after_request
     def cors_headers(resp):
-        resp.headers["Access-Control-Allow-Origin"]  = "*"
-        resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        origin = request.headers.get('Origin', '')
+        if origin in Config.ALLOWED_ORIGINS:
+            resp.headers['Access-Control-Allow-Origin'] = origin
+            resp.headers['Access-Control-Allow-Credentials'] = 'true'
+        else:
+            resp.headers['Access-Control-Allow-Origin'] = '*'
+        resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-CSRF-Token, X-Requested-With, X-Frontend-Origin'
+        resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
         return resp
+
+    @app.before_request
+    def validate_request_headers():
+        if request.method == 'OPTIONS':
+            return None
+        if not request.path.startswith('/api/'):
+            return None
+
+        frontend_origin = request.headers.get('X-Frontend-Origin', '')
+        requested_with = request.headers.get('X-Requested-With', '')
+        if requested_with != 'XMLHttpRequest' or 'EditorCode' not in frontend_origin:
+            return jsonify({'message': 'Forbidden: Invalid request source'}), 403
+
+        return None
 
     # ── MongoDB ───────────────────────────────────────────────────────
     try:

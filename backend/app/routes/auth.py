@@ -1,9 +1,11 @@
-from flask import Blueprint, request, jsonify
-import bcrypt, jwt, re
+from flask import Blueprint, request, jsonify, make_response
+import bcrypt, jwt, re, secrets
 from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 from config import Config
 from app.middleware.auth import require_auth
+from app.middleware.csrf import require_csrf
+from app.middleware.rate_limit import rate_limit
 import app as m
 
 auth_bp = Blueprint('auth', __name__)
@@ -30,6 +32,39 @@ def _make_tokens(user_id: str, email: str, remember: bool = False):
     )
     return access, refresh
 
+
+def _make_csrf():
+    return secrets.token_hex(32)
+
+
+def _with_refresh_cookie(resp, refresh_token):
+    resp.set_cookie(
+        'refresh_token', refresh_token,
+        httponly=True,
+        samesite='Lax',
+        secure=False,
+        max_age=Config.REFRESH_TOKEN_EXPIRES,
+        path='/api/auth'
+    )
+    return resp
+
+
+def _success(user_id, email, name, remember=False, code=200):
+    acc, ref = _make_tokens(str(user_id), email, remember)
+    csrf = _make_csrf()
+    if m.redis:
+        try:
+            m.redis.setex(f'csrf:{str(user_id)}', Config.CSRF_TOKEN_EXPIRES, csrf)
+        except Exception:
+            pass
+
+    response = make_response(jsonify({
+        'accessToken':  acc,
+        'user': {'id': str(user_id), 'email': email, 'name': name},
+    }), code)
+    response.headers['X-CSRF-Token'] = csrf
+    _with_refresh_cookie(response, ref)
+    return response
 def _hash_pw(pw: str) -> str:
     return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
 
@@ -53,6 +88,7 @@ def _success(user_id, email, name, remember=False, code=200):
 # ── routes ────────────────────────────────────────────────────────────────────
 
 @auth_bp.route('/login', methods=['POST'])
+@rate_limit(max_requests=5, window_seconds=900, key_prefix='login')
 def login():
     """
     Unified login + auto-register:
@@ -116,8 +152,7 @@ def verify():
 
 @auth_bp.route('/refresh', methods=['POST'])
 def refresh():
-    data = request.get_json(silent=True) or {}
-    rt   = (data.get('refreshToken') or '').strip()
+    rt = request.cookies.get('refresh_token', '')
     if not rt:
         return jsonify({'message': 'Refresh token required'}), 400
     try:
@@ -127,7 +162,16 @@ def refresh():
         if not user:
             return jsonify({'message': 'User not found'}), 401
         acc, new_rt = _make_tokens(str(user['_id']), user['email'])
-        return jsonify({'accessToken': acc, 'refreshToken': new_rt})
+        csrf = _make_csrf()
+        if m.redis:
+            try:
+                m.redis.setex(f'csrf:{str(user['_id'])}', Config.CSRF_TOKEN_EXPIRES, csrf)
+            except Exception:
+                pass
+        response = make_response(jsonify({'accessToken': acc}))
+        response.headers['X-CSRF-Token'] = csrf
+        _with_refresh_cookie(response, new_rt)
+        return response
     except jwt.ExpiredSignatureError:
         return jsonify({'message': 'Session expired. Please login again.'}), 401
     except (jwt.InvalidTokenError, Exception) as e:
@@ -136,14 +180,19 @@ def refresh():
 
 @auth_bp.route('/logout', methods=['POST'])
 @require_auth
+@require_csrf
 def logout():
     token = (request.headers.get('Authorization', '') or '')[7:]
     try:
         if m.redis and token:
             m.redis.setex(f'bl:{token}', Config.ACCESS_TOKEN_EXPIRES, '1')
+            m.redis.delete(f'csrf:{request.user_id}')
     except Exception:
         pass
-    return jsonify({'message': 'Logged out'})
+
+    response = make_response(jsonify({'message': 'Logged out'}))
+    response.set_cookie('refresh_token', '', httponly=True, samesite='Lax', secure=False, max_age=0, path='/api/auth')
+    return response
 
 
 

@@ -2,6 +2,8 @@ from flask import Blueprint, jsonify, request
 from bson import ObjectId
 from datetime import datetime, timezone, date
 from app.middleware.auth import require_auth
+from app.middleware.csrf import require_csrf
+from app.middleware.rate_limit import rate_limit
 import app as app_module
  
 progress_bp = Blueprint('progress', __name__)
@@ -84,6 +86,7 @@ def serialize_progress(doc):
  
 @progress_bp.route('/<user_id>/<course_id>', methods=['GET'])
 @require_auth
+@rate_limit(max_requests=100, window_seconds=3600, key_prefix='api')
 def get_progress(user_id, course_id):
     progress = app_module.db.progress.find_one({'user_id': ObjectId(user_id), 'course_id': course_id})
     if not progress:
@@ -92,6 +95,8 @@ def get_progress(user_id, course_id):
  
 @progress_bp.route('/lesson/complete', methods=['POST'])
 @require_auth
+@require_csrf
+@rate_limit(max_requests=100, window_seconds=3600, key_prefix='api')
 def complete_lesson():
     data = request.get_json()
     user_id = data.get('userId')
@@ -162,6 +167,7 @@ def complete_lesson():
  
 @progress_bp.route('/submodule/<submodule_id>/status', methods=['GET'])
 @require_auth
+@rate_limit(max_requests=100, window_seconds=3600, key_prefix='api')
 def get_submodule_status(submodule_id):
     user_id = request.args.get('userId') or request.user_id
     course_id = request.args.get('courseId', 'python-mastery')
@@ -186,6 +192,8 @@ def get_submodule_status(submodule_id):
  
 @progress_bp.route('/heartbeat', methods=['POST'])
 @require_auth
+@require_csrf
+@rate_limit(max_requests=100, window_seconds=3600, key_prefix='api')
 def heartbeat():
     data = request.get_json()
     user_id = data.get('userId')
@@ -202,6 +210,7 @@ def heartbeat():
  
 @progress_bp.route('/streak/<user_id>', methods=['GET'])
 @require_auth
+@rate_limit(max_requests=100, window_seconds=3600, key_prefix='api')
 def get_streak(user_id):
     progress = app_module.db.progress.find_one({'user_id': ObjectId(user_id)})
     if not progress:

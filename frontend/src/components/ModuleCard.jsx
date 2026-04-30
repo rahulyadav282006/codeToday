@@ -8,10 +8,19 @@ const STATUS_CONFIG = {
   completed: { badge: 'COMPLETED', badgeColor: '#10b981', badgeBg: '#f0fdf4', icon: null, btnText: 'COMPLETED', btnDisabled: true, btnStyle: 'completed' },
 }
 
-export default function ModuleCard({ module, courseId, progressPct }) {
+export default function ModuleCard({ module, courseId }) {
   const navigate = useNavigate()
   const config = STATUS_CONFIG[module.status] || STATUS_CONFIG.locked
   const isLocked = module.status === 'locked'
+
+  // Compute progress from submodules and lessons if available
+  let progressPct = 0
+  if (module.status === 'in_progress' && module.submodules) {
+    const totalLessons = module.submodules.reduce((acc, sub) => acc + (sub.lessons?.length || 0), 0)
+    const completedLessons = module.submodules.reduce((acc, sub) => 
+      acc + (sub.lessons?.filter(l => l.status === 'completed').length || 0), 0)
+    progressPct = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
+  }
 
   const handleClick = () => {
     if (isLocked) return

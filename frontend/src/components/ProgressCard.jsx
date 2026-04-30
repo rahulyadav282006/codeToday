@@ -1,11 +1,11 @@
 import React from 'react'
 
 export default function ProgressCard({ progress }) {
-  const pct = progress?.total_progress_percent || 35
-  const timeSpent = progress?.time_spent_minutes || 125
-  const streak = progress?.streak_days || 3
-  const totalModules = 4
-  const completedModules = progress?.modules?.filter(m => m.status === 'completed').length || 1
+  const pct = progress?.total_progress_percent ?? 0
+  const timeSpent = progress?.time_spent_minutes ?? 0
+  const streak = progress?.streak_days ?? 0
+  const totalModules = progress?.modules?.length ?? 0
+  const completedModules = progress?.modules?.filter(m => m.status === 'completed').length ?? 0
 
   const hours = Math.floor(timeSpent / 60)
   const mins = timeSpent % 60

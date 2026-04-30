@@ -1,31 +1,41 @@
 import axios from 'axios'
 
-// In Docker: frontend container talks to backend container via service name
-// In dev: uses localhost:5000
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 const api = axios.create({
   baseURL: BASE_URL,
   timeout: 15000,
-  headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
+    'X-Frontend-Origin': 'EditorCode',
+  },
 })
 
-// ── attach token ────────────────────────────────────────────────────────────
+// ── attach token and CSRF token ───────────────────────────────────────────────
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('access_token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+
+  const csrf = localStorage.getItem('csrf_token')
+  if (csrf) config.headers['X-CSRF-Token'] = csrf
+
   return config
 })
 
-// ── auto-refresh on 401 ─────────────────────────────────────────────────────
-let refreshing = false
-let queue = []
-
+// ── store CSRF tokens from responses ─────────────────────────────────────────
 api.interceptors.response.use(
-  r => r,
+  response => {
+    const csrf = response.headers['x-csrf-token']
+    if (csrf) {
+      localStorage.setItem('csrf_token', csrf)
+    }
+    return response
+  },
   async err => {
     const orig = err.config
-    if (err.response?.status !== 401 || orig._retry) return Promise.reject(err)
+    if (err.response?.status !== 401 || orig?._retry) return Promise.reject(err)
 
     if (refreshing) {
       return new Promise((res, rej) => queue.push({ res, rej }))
@@ -35,13 +45,9 @@ api.interceptors.response.use(
     orig._retry = true
     refreshing  = true
 
-    const rt = localStorage.getItem('refresh_token')
-    if (!rt) { refreshing = false; return Promise.reject(err) }
-
     try {
-      const { data } = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken: rt })
+      const { data } = await axios.post(`${BASE_URL}/auth/refresh`)
       localStorage.setItem('access_token', data.accessToken)
-      if (data.refreshToken) localStorage.setItem('refresh_token', data.refreshToken)
       queue.forEach(p => p.res(data.accessToken))
       queue = []
       orig.headers.Authorization = `Bearer ${data.accessToken}`
@@ -49,13 +55,17 @@ api.interceptors.response.use(
     } catch (e) {
       queue.forEach(p => p.rej(e))
       queue = []
-      localStorage.clear()
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('csrf_token')
       return Promise.reject(e)
     } finally {
       refreshing = false
     }
   }
 )
+
+let refreshing = false
+let queue = []
 
 export default api
 

@@ -341,125 +341,109 @@ def seed_course():
     print(f"✓ Course seeded: Python Mastery ({result.inserted_id})")
     return result.inserted_id
  
-def seed_progress(user_id):
-    """Seed progress: mod1 completed, mod2 60%, mod3 in_progress, mod4 locked"""
-    now = datetime.now(timezone.utc)
-    yesterday = now - timedelta(days=1)
- 
-    progress = {
-        'user_id': user_id,
-        'course_id': 'python-mastery',
+
+def seed_js_course():
+    course = {
+        'course_id': 'core-javascript',
+        'title': 'Core JavaScript',
+        'description': 'Understand modern JavaScript with DOM manipulation, async functions, and ES2025 best practices.',
+        'estimated_hours': 24,
         'modules': [
             {
-                'id': 'mod_1',
-                'title': 'Basic Syntax',
-                'status': 'completed',
+                'id': 'js_mod_1',
+                'title': 'JavaScript Essentials',
+                'description': 'Syntax, variables, and modern control flow.',
                 'order': 1,
+                'total_lessons': 2,
+                'estimated_minutes': 90,
+                'icon': '📘',
+                'prerequisite': None,
                 'submodules': [
                     {
-                        'id': 'sub_1_1',
-                        'title': 'The Illuminated Syntax',
-                        'status': 'completed',
+                        'id': 'js_sub_1_1',
+                        'title': 'JS Syntax & Flow',
+                        'description': 'Core JavaScript fundamentals to build reliable applications.',
                         'order': 1,
                         'lessons': [
-                            {'id': 'les_1_1_1', 'title': 'The Pythonic Way', 'status': 'completed', 'time_spent_seconds': 540, 'completed_at': yesterday.isoformat()},
-                            {'id': 'les_1_1_2', 'title': 'Types & Dynamic Typing', 'status': 'completed', 'time_spent_seconds': 420, 'completed_at': yesterday.isoformat()},
-                        ]
-                    },
-                    {
-                        'id': 'sub_1_2',
-                        'title': 'Control Flow Mastery',
-                        'status': 'completed',
-                        'order': 2,
-                        'lessons': [
-                            {'id': 'les_1_2_1', 'title': 'If/Elif/Else Logic', 'status': 'completed', 'time_spent_seconds': 380, 'completed_at': yesterday.isoformat()},
-                            {'id': 'les_1_2_2', 'title': 'Loops & Iteration', 'status': 'completed', 'time_spent_seconds': 460, 'completed_at': yesterday.isoformat()},
-                        ]
-                    },
-                    {
-                        'id': 'sub_1_3',
-                        'title': 'Functions & Scope',
-                        'status': 'completed',
-                        'order': 3,
-                        'lessons': [
-                            {'id': 'les_1_3_1', 'title': 'Defining Functions', 'status': 'completed', 'time_spent_seconds': 520, 'completed_at': yesterday.isoformat()},
-                            {'id': 'les_1_3_2', 'title': 'Default & Keyword Args', 'status': 'completed', 'time_spent_seconds': 490, 'completed_at': yesterday.isoformat()},
+                            {
+                                'id': 'js_les_1_1_1',
+                                'title': 'Variables & Types',
+                                'description': 'Learn let, const, and basic JavaScript data types.',
+                                'core_concepts': ['let and const', 'primitive types', 'basic expressions'],
+                                'syntax_reference': 'const name = "JavaScript";
+let count = 5;
+console.log(`${name} ${count}`);',
+                                'lab_challenge': 'Create a variable named `message` and print it to the console.',
+                                'starter_code': 'const message = "";
+console.log(message);',
+                                'solution_code': 'const message = "Hello from JS!";
+console.log(message);',
+                                'expected_output': 'Hello from JS!',
+                                'order': 1,
+                            },
                         ]
                     },
                 ]
             },
-            {
-                'id': 'mod_2',
-                'title': 'Data Structures',
-                'status': 'in_progress',
-                'order': 2,
-                'submodules': [
-                    {
-                        'id': 'sub_2_1',
-                        'title': 'List Comprehensions & Maps',
-                        'status': 'completed',
-                        'order': 1,
-                        'lessons': [
-                            {'id': 'les_2_1_1', 'title': 'Mastering Python Lists', 'status': 'completed', 'time_spent_seconds': 650, 'completed_at': now.isoformat()},
-                            {'id': 'les_2_1_2', 'title': 'List Methods & Slicing', 'status': 'completed', 'time_spent_seconds': 480, 'completed_at': now.isoformat()},
-                        ]
-                    },
-                    {
-                        'id': 'sub_2_2',
-                        'title': 'Object Oriented Design',
-                        'status': 'in_progress',
-                        'order': 2,
-                        'lessons': [
-                            {'id': 'les_2_2_1', 'title': 'Classes & Objects', 'status': 'in_progress', 'time_spent_seconds': 120, 'completed_at': None},
-                            {'id': 'les_2_2_2', 'title': 'Mid Module Challenge', 'status': 'not_started', 'time_spent_seconds': 0, 'completed_at': None},
-                        ]
-                    },
-                ]
-            },
-            {
-                'id': 'mod_3',
-                'title': 'Web with Django',
-                'status': 'in_progress',
-                'order': 3,
-                'submodules': [
-                    {
-                        'id': 'sub_3_1',
-                        'title': 'The MVC Architecture',
-                        'status': 'in_progress',
-                        'order': 1,
-                        'lessons': [
-                            {'id': 'les_3_1_1', 'title': 'Django Setup & Hello World', 'status': 'not_started', 'time_spent_seconds': 0, 'completed_at': None},
-                        ]
-                    },
-                ]
-            },
-            {
-                'id': 'mod_4',
-                'title': 'Advanced Analytics',
-                'status': 'locked',
-                'order': 4,
-                'submodules': [
-                    {
-                        'id': 'sub_4_1',
-                        'title': 'NumPy Foundations',
-                        'status': 'not_started',
-                        'order': 1,
-                        'lessons': [
-                            {'id': 'les_4_1_1', 'title': 'NumPy Arrays', 'status': 'not_started', 'time_spent_seconds': 0, 'completed_at': None},
-                        ]
-                    },
-                ]
-            },
-        ],
-        'total_progress_percent': 35,
-        'time_spent_minutes': 125,
-        'streak_days': 3,
-        'last_active_date': now,
-        'created_at': now - timedelta(days=7),
-        'updated_at': now,
+        ]
     }
-    result = db.progress.insert_one(progress)
-    print(f"✓ Progress seeded: Module 1 completed, Module 2 in progress (60%), Module 4 locked")
+    result = db.courses.insert_one(course)
+    print(f"✓ Course seeded: Core JavaScript ({result.inserted_id})")
+    return result.inserted_id
+ 
+
+def seed_frontend_course():
+    course = {
+        'course_id': 'frontend-engineering',
+        'title': 'Frontend Engineering',
+        'description': 'Build responsive UI and modern web apps with React and client-side architecture.',
+        'estimated_hours': 26,
+        'modules': [
+            {
+                'id': 'fe_mod_1',
+                'title': 'React Foundations',
+                'description': 'JSX, component design, and state management.',
+                'order': 1,
+                'total_lessons': 2,
+                'estimated_minutes': 100,
+                'icon': '✨',
+                'prerequisite': None,
+                'submodules': [
+                    {
+                        'id': 'fe_sub_1_1',
+                        'title': 'Component Basics',
+                        'description': 'React component building blocks and props.',
+                        'order': 1,
+                        'lessons': [
+                            {
+                                'id': 'fe_les_1_1_1',
+                                'title': 'JSX & Props',
+                                'description': 'Create simple components using JSX and props.',
+                                'core_concepts': ['JSX syntax', 'functional components', 'props'],
+                                'syntax_reference': 'function Hello({ name }) {
+  return <div>Hello, {name}</div>;
+}
+',
+                                'lab_challenge': 'Write a component that returns `Hello, Developer!`.',
+                                'starter_code': 'function Greeting({ name }) {
+  return null;
+}
+console.log(Greeting({ name: "Developer" }));',
+                                'solution_code': 'function Greeting({ name }) {
+  return `Hello, ${name}!`;
+}
+console.log(Greeting({ name: "Developer" }));',
+                                'expected_output': 'Hello, Developer!',
+                                'order': 1,
+                            },
+                        ]
+                    },
+                ]
+            },
+        ]
+    }
+    result = db.courses.insert_one(course)
+    print(f"✓ Course seeded: Frontend Engineering ({result.inserted_id})")
     return result.inserted_id
  
 if __name__ == '__main__':
@@ -467,5 +451,6 @@ if __name__ == '__main__':
     clear()
     user_id = seed_user()
     seed_course()
-    seed_progress(user_id)
+    seed_js_course()
+    seed_frontend_course()
     print("\n✅ Seed complete! Login with: dev@syntax.io / Password123!\n")

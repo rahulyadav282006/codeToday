@@ -3,17 +3,25 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-    JWT_SECRET_KEY       = os.getenv('JWT_SECRET_KEY',      'editorcode-jwt-secret-key-32chars!!')
-    JWT_REFRESH_SECRET   = os.getenv('JWT_REFRESH_SECRET',  'editorcode-refresh-secret-32chars!')
-    MONGO_URI            = os.getenv('MONGO_URI',           'mongodb://mongodb:27017/codemaster')
-    MONGO_DB_NAME        = os.getenv('MONGO_DB_NAME',       'codemaster')
-    REDIS_URL            = os.getenv('REDIS_URL',           'redis://redis:6379')
-    FRONTEND_URL         = os.getenv('FRONTEND_URL',        'http://localhost:5173')
-    ACCESS_TOKEN_EXPIRES  = 7  * 24 * 3600   # 7 days
-    ACCESS_TOKEN_REMEMBER = 30 * 24 * 3600   # 30 days
-    REFRESH_TOKEN_EXPIRES = 30 * 24 * 3600   # 30 days
-    MONGO_TIMEOUT_MS     = 5000              # 5 second connection timeout
-
+    JWT_SECRET_KEY        = os.getenv('JWT_SECRET_KEY',      'editorcode-jwt-secret-key-32chars!!')
+    JWT_REFRESH_SECRET    = os.getenv('JWT_REFRESH_SECRET',  'editorcode-refresh-secret-32chars!')
+    MONGO_URI             = os.getenv('MONGO_URI',           'mongodb://mongodb:27017/codemaster')
+    MONGO_DB_NAME         = os.getenv('MONGO_DB_NAME',       'codemaster')
+    REDIS_URL             = os.getenv('REDIS_URL',           'redis://redis:6379')
+    FRONTEND_URL          = os.getenv('FRONTEND_URL',        'http://localhost:5173')
+    ACCESS_TOKEN_EXPIRES  = 30 * 60              # 30 minutes
+    ACCESS_TOKEN_REMEMBER = 30 * 24 * 3600       # 30 days
+    REFRESH_TOKEN_EXPIRES = 30 * 24 * 3600       # 30 days
+    CSRF_TOKEN_EXPIRES    = 24 * 3600            # 1 day
+    PYTHON_EXECUTOR_URL   = os.getenv('PYTHON_EXECUTOR_URL', 'http://sandbox:8080')
+    MONGO_TIMEOUT_MS      = 5000                 # 5 second connection timeout
+    ALLOWED_ORIGINS       = [
+        os.getenv('FRONTEND_URL', 'http://localhost:5173'),
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+        'http://localhost:5174',
+        'http://127.0.0.1:5174',
+    ]
 
     
 # 30 4 20 26

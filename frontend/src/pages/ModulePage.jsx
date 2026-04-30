@@ -54,9 +54,6 @@ export default function ModulePage() {
     ? modulesWithProgress.filter(m => m.status !== 'completed')
     : modulesWithProgress
 
-  const mod2Progress = currentProgress?.modules?.find(m => m.id === 'mod_2')
-  const mod2Pct = 60 // From seed data
-
   return (
     <div style={{ display: 'flex', minHeight: 'calc(100vh - 64px)' }}>
       {/* Sidebar */}
@@ -147,7 +144,6 @@ export default function ModulePage() {
                   key={mod.id}
                   module={mod}
                   courseId={courseId}
-                  progressPct={mod.id === 'mod_2' ? mod2Pct : undefined}
                 />
               ))}
             </div>

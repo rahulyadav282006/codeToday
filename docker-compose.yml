@@ -11,6 +11,7 @@ services:
       - "5173:5173"
     environment:
       - VITE_API_URL=/api
+      - VITE_API_PROXY=http://backend:5000
     depends_on:
       backend:
         condition: service_healthy
@@ -26,6 +27,7 @@ services:
       - MONGO_URI=mongodb://mongodb:27017/codemaster
       - MONGO_DB_NAME=codemaster
       - REDIS_URL=redis://redis:6379
+      - PYTHON_EXECUTOR_URL=http://sandbox:8080
       - JWT_SECRET_KEY=editorcode-jwt-secret-key-32chars!!
       - JWT_REFRESH_SECRET=editorcode-refresh-secret-32chars!
       - FRONTEND_URL=http://localhost:5173
@@ -33,6 +35,8 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+      redis:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
       interval: 10s
@@ -59,6 +63,11 @@ services:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
 
   sandbox:

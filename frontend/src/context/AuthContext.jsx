@@ -10,10 +10,9 @@ export function AuthProvider({ children }) {
   const refreshTimer = useRef(null)
 
   // ── helpers ──────────────────────────────────────────────────────────
-  const saveSession = (accessToken, refreshToken, userObj) => {
-    localStorage.setItem('access_token',  accessToken)
-    localStorage.setItem('refresh_token', refreshToken)
-    localStorage.setItem('user',          JSON.stringify(userObj))
+  const saveSession = (accessToken, userObj) => {
+    localStorage.setItem('access_token', accessToken)
+    localStorage.setItem('user', JSON.stringify(userObj))
     setUser(userObj)
     setIsAuthenticated(true)
     scheduleRefresh(accessToken)
@@ -40,15 +39,15 @@ export function AuthProvider({ children }) {
   }
 
   const silentRefresh = async () => {
-    const rt = localStorage.getItem('refresh_token')
-    if (!rt) return
     try {
-      const { data } = await api.post('/auth/refresh', { refreshToken: rt })
+      const { data } = await api.post('/auth/refresh')
+      if (!data.accessToken) throw new Error('Refresh failed')
       localStorage.setItem('access_token', data.accessToken)
-      if (data.refreshToken) localStorage.setItem('refresh_token', data.refreshToken)
       scheduleRefresh(data.accessToken)
+      return data.accessToken
     } catch {
       clearSession()
+      return null
     }
   }
 
@@ -65,7 +64,17 @@ export function AuthProvider({ children }) {
         scheduleRefresh(token)
       } catch (err) {
         if (err.response?.status === 401) {
-          await silentRefresh()
+          const newToken = await silentRefresh()
+          if (newToken) {
+            try {
+              const { data } = await api.get('/auth/verify')
+              setUser(data.user)
+              setIsAuthenticated(true)
+              scheduleRefresh(newToken)
+            } catch {
+              clearSession()
+            }
+          }
         } else {
           clearSession()
         }
@@ -80,7 +89,7 @@ export function AuthProvider({ children }) {
   // ── public API ───────────────────────────────────────────────────────
   const login = async (email, password, remember = false) => {
     const { data } = await api.post('/auth/login', { email, password, remember })
-    saveSession(data.accessToken, data.refreshToken, data.user)
+    saveSession(data.accessToken, data.user)
     return data.user
   }
 
