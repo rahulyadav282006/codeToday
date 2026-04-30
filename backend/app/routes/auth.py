@@ -1,5 +1,4 @@
 
-Copy
 
 from flask import Blueprint, request, jsonify
 import bcrypt
@@ -174,7 +173,7 @@ def verify():
         return jsonify({'message': str(e)}), 500
 
 
-        
+
 # 30  4 20 26
 
 #from flask import Blueprint, request, jsonify
