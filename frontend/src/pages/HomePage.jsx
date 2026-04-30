@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import LoginModal from '../components/LoginModal'
+// import LoginModal from '../components/LoginModal'
 
 const COURSES = [
   {
@@ -301,7 +301,7 @@ const handleExplorePath = (course) => {
         </div>
       </footer>
 
-      <LoginModal open={showLogin} onClose={() => setShowLogin(false)} onSuccess={handleLoginSuccess} />
+      {/* <LoginModal open={showLogin} onClose={() => setShowLogin(false)} onSuccess={handleLoginSuccess} /> */}
     </div>
   )
 }
