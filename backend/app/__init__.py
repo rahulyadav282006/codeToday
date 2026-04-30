@@ -1,6 +1,5 @@
 
 
-Copy
 
 from flask import Flask, request, make_response, jsonify
 from flask_cors import CORS
@@ -93,7 +92,7 @@ def create_app():
     return app
  
 
- 
+
 # 30 4 20 26
 # from flask import Flask
 # from flask_cors import CORS
