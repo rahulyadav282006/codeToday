@@ -13,12 +13,12 @@ const theme = createTheme({
   },
   typography: {
     fontFamily: "'DM Sans', sans-serif",
-    h1: { fontFamily: "'Inter', sans-serif" },
-    h2: { fontFamily: "'Inter', sans-serif" },
-    h3: { fontFamily: "'Inter', sans-serif" },
-    h4: { fontFamily: "'Inter', sans-serif" },
-    h5: { fontFamily: "'Inter', sans-serif" },
-    h6: { fontFamily: "'Inter', sans-serif" },
+    h1: { fontFamily: "'Syne', sans-serif" },
+    h2: { fontFamily: "'Syne', sans-serif" },
+    h3: { fontFamily: "'Syne', sans-serif" },
+    h4: { fontFamily: "'Syne', sans-serif" },
+    h5: { fontFamily: "'Syne', sans-serif" },
+    h6: { fontFamily: "'Syne', sans-serif" },
   },
   components: {
     MuiButton: {
