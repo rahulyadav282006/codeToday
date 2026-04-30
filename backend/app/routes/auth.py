@@ -1,176 +1,150 @@
-
-
 from flask import Blueprint, request, jsonify
-import bcrypt
-import jwt
-import secrets
-import re
+import bcrypt, jwt, re
 from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 from config import Config
 from app.middleware.auth import require_auth
-import app as app_module
- 
+import app as m
+
 auth_bp = Blueprint('auth', __name__)
- 
- 
-def make_tokens(user_id, email, remember=False):
-    exp_seconds = Config.ACCESS_TOKEN_REMEMBER if remember else Config.ACCESS_TOKEN_EXPIRES
-    now = datetime.now(timezone.utc)
-    access_payload = {
-        'userId': str(user_id),
-        'email': email,
-        'iat': int(now.timestamp()),
-        'exp': int((now + timedelta(seconds=exp_seconds)).timestamp()),
-    }
-    refresh_payload = {
-        'userId': str(user_id),
-        'iat': int(now.timestamp()),
-        'exp': int((now + timedelta(seconds=Config.REFRESH_TOKEN_EXPIRES)).timestamp()),
-    }
-    access = jwt.encode(access_payload, Config.JWT_SECRET_KEY, algorithm='HS256')
-    refresh = jwt.encode(refresh_payload, Config.JWT_REFRESH_SECRET, algorithm='HS256')
+
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+def _now():
+    return datetime.now(timezone.utc)
+
+def _make_tokens(user_id: str, email: str, remember: bool = False):
+    now      = _now()
+    exp_acc  = Config.ACCESS_TOKEN_REMEMBER if remember else Config.ACCESS_TOKEN_EXPIRES
+    exp_ref  = Config.REFRESH_TOKEN_EXPIRES
+
+    access = jwt.encode(
+        {'userId': user_id, 'email': email,
+         'iat': int(now.timestamp()), 'exp': int((now + timedelta(seconds=exp_acc)).timestamp())},
+        Config.JWT_SECRET_KEY, algorithm='HS256'
+    )
+    refresh = jwt.encode(
+        {'userId': user_id,
+         'iat': int(now.timestamp()), 'exp': int((now + timedelta(seconds=exp_ref)).timestamp())},
+        Config.JWT_REFRESH_SECRET, algorithm='HS256'
+    )
     return access, refresh
- 
- 
-def hash_password(password):
-    """Hash password and return as string (not bytes)"""
-    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-    return hashed.decode('utf-8')  # store as string in MongoDB
- 
- 
-def check_password(password, hashed):
-    """Compare password to stored hash (handles both bytes and string)"""
+
+def _hash_pw(pw: str) -> str:
+    return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
+
+def _check_pw(pw: str, hashed) -> bool:
     if isinstance(hashed, str):
-        hashed = hashed.encode('utf-8')
-    return bcrypt.checkpw(password.encode('utf-8'), hashed)
- 
- 
-def email_to_name(email):
-    """Generate a name from email address"""
+        hashed = hashed.encode()
+    return bcrypt.checkpw(pw.encode(), hashed)
+
+def _name_from_email(email: str) -> str:
     local = email.split('@')[0]
-    name = re.sub(r'[._\-+]', ' ', local).title()
-    return name or 'User'
- 
- 
-def build_response(user_id, email, name, remember=False, status=200):
-    access, refresh = make_tokens(user_id, email, remember)
-    response = jsonify({
-        'accessToken': access,
-        'refreshToken': refresh,
+    return re.sub(r'[._+\-]', ' ', local).title() or 'User'
+
+def _success(user_id, email, name, remember=False, code=200):
+    acc, ref = _make_tokens(str(user_id), email, remember)
+    return jsonify({
+        'accessToken':  acc,
+        'refreshToken': ref,
         'user': {'id': str(user_id), 'email': email, 'name': name},
-    })
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    return response, status
- 
- 
-# ─────────────────────────────────────────────
-# UNIFIED LOGIN / AUTO-REGISTER ENDPOINT
-# If user exists  → verify password → login
-# If user doesn't exist → create account → login
-# ─────────────────────────────────────────────
-@auth_bp.route('/login', methods=['POST', 'OPTIONS'])
+    }), code
+
+# ── routes ────────────────────────────────────────────────────────────────────
+
+@auth_bp.route('/login', methods=['POST'])
 def login():
-    if request.method == 'OPTIONS':
-        return jsonify({}), 200
- 
-    data = request.get_json(silent=True) or {}
-    email = (data.get('email') or '').lower().strip()
+    """
+    Unified login + auto-register:
+    • User exists   → verify password → return tokens
+    • User missing  → create account  → return tokens
+    """
+    data     = request.get_json(silent=True) or {}
+    email    = (data.get('email')    or '').strip().lower()
     password = (data.get('password') or '').strip()
     remember = bool(data.get('remember', False))
- 
-    # Basic validation
-    if not email or not password:
-        return jsonify({'message': 'Email and password are required'}), 400
+
+    # ── validate ──
+    if not email:
+        return jsonify({'message': 'Email is required'}), 400
     if '@' not in email or '.' not in email.split('@')[-1]:
-        return jsonify({'message': 'Please enter a valid email address'}), 400
+        return jsonify({'message': 'Enter a valid email address'}), 400
     if len(password) < 6:
         return jsonify({'message': 'Password must be at least 6 characters'}), 400
- 
-    users = app_module.db.users
-    now = datetime.now(timezone.utc)
-    user = users.find_one({'email': email})
- 
+
+    users = m.db.users
+    user  = users.find_one({'email': email})
+
     if user:
-        # User exists — verify password
-        if not check_password(password, user['password_hash']):
-            return jsonify({'message': 'Incorrect password. Please try again.'}), 401
-        # Update last login
-        users.update_one({'_id': user['_id']}, {'$set': {'last_login': now}})
-        return build_response(user['_id'], email, user['name'], remember)
+        # ── existing user: check password ──
+        if not _check_pw(password, user['password_hash']):
+            return jsonify({'message': 'Incorrect password'}), 401
+        users.update_one({'_id': user['_id']}, {'$set': {'last_login': _now()}})
+        return _success(user['_id'], email, user['name'], remember)
     else:
-        # User does NOT exist — auto-register them
-        name = email_to_name(email)
-        hashed = hash_password(password)
-        doc = {
-            'email': email,
-            'password_hash': hashed,
-            'name': name,
-            'created_at': now,
-            'last_login': now,
-            'is_active': True,
-        }
-        result = users.insert_one(doc)
-        return build_response(result.inserted_id, email, name, remember, status=201)
- 
- 
-# Keep /register for backwards compatibility — same logic
-@auth_bp.route('/register', methods=['POST', 'OPTIONS'])
+        # ── new user: auto-register ──
+        name   = _name_from_email(email)
+        result = users.insert_one({
+            'email':         email,
+            'password_hash': _hash_pw(password),
+            'name':          name,
+            'created_at':    _now(),
+            'last_login':    _now(),
+            'is_active':     True,
+        })
+        return _success(result.inserted_id, email, name, remember, code=201)
+
+
+@auth_bp.route('/register', methods=['POST'])
 def register():
+    """Alias — same logic as /login."""
     return login()
- 
- 
-@auth_bp.route('/logout', methods=['POST', 'OPTIONS'])
+
+
+@auth_bp.route('/verify', methods=['GET'])
 @require_auth
-def logout():
-    if request.method == 'OPTIONS':
-        return jsonify({}), 200
-    auth_header = request.headers.get('Authorization', '')
-    token = auth_header.split(' ', 1)[1] if ' ' in auth_header else ''
-    if token and app_module.redis:
-        try:
-            app_module.redis.setex(f'blacklist:{token}', Config.ACCESS_TOKEN_EXPIRES, '1')
-        except Exception:
-            pass
-    return jsonify({'message': 'Logged out successfully'})
- 
- 
-@auth_bp.route('/refresh', methods=['POST', 'OPTIONS'])
+def verify():
+    user = m.db.users.find_one({'_id': ObjectId(request.user_id)})
+    if not user:
+        return jsonify({'message': 'User not found'}), 404
+    return jsonify({'user': {
+        'id':    str(user['_id']),
+        'email': user['email'],
+        'name':  user['name'],
+    }})
+
+
+@auth_bp.route('/refresh', methods=['POST'])
 def refresh():
-    if request.method == 'OPTIONS':
-        return jsonify({}), 200
     data = request.get_json(silent=True) or {}
-    rt = data.get('refreshToken', '')
+    rt   = (data.get('refreshToken') or '').strip()
     if not rt:
         return jsonify({'message': 'Refresh token required'}), 400
     try:
         payload = jwt.decode(rt, Config.JWT_REFRESH_SECRET, algorithms=['HS256'])
-        user_id = payload['userId']
-        user = app_module.db.users.find_one({'_id': ObjectId(user_id)})
+        uid     = payload['userId']
+        user    = m.db.users.find_one({'_id': ObjectId(uid)})
         if not user:
             return jsonify({'message': 'User not found'}), 401
-        access, new_refresh = make_tokens(user['_id'], user['email'])
-        return jsonify({'accessToken': access, 'refreshToken': new_refresh})
+        acc, new_rt = _make_tokens(str(user['_id']), user['email'])
+        return jsonify({'accessToken': acc, 'refreshToken': new_rt})
     except jwt.ExpiredSignatureError:
-        return jsonify({'message': 'Session expired, please login again'}), 401
-    except jwt.InvalidTokenError:
-        return jsonify({'message': 'Invalid session token'}), 401
-    except Exception as e:
-        return jsonify({'message': f'Refresh failed: {str(e)}'}), 500
- 
- 
-@auth_bp.route('/verify', methods=['GET', 'OPTIONS'])
+        return jsonify({'message': 'Session expired. Please login again.'}), 401
+    except (jwt.InvalidTokenError, Exception) as e:
+        return jsonify({'message': f'Invalid refresh token: {e}'}), 401
+
+
+@auth_bp.route('/logout', methods=['POST'])
 @require_auth
-def verify():
-    if request.method == 'OPTIONS':
-        return jsonify({}), 200
+def logout():
+    token = (request.headers.get('Authorization', '') or '')[7:]
     try:
-        user = app_module.db.users.find_one({'_id': ObjectId(request.user_id)})
-        if not user:
-            return jsonify({'message': 'User not found'}), 404
-        return jsonify({'user': {'id': str(user['_id']), 'email': user['email'], 'name': user['name']}})
-    except Exception as e:
-        return jsonify({'message': str(e)}), 500
+        if m.redis and token:
+            m.redis.setex(f'bl:{token}', Config.ACCESS_TOKEN_EXPIRES, '1')
+    except Exception:
+        pass
+    return jsonify({'message': 'Logged out'})
+
 
 
 

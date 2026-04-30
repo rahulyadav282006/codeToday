@@ -1,35 +1,45 @@
-version: '3.8'
+
+version: '3.9'
 
 services:
+
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
       - "5173:5173"
-    depends_on:
-      - backend
     environment:
-      - VITE_API_URL=http://localhost:5000/api
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - VITE_API_URL=/api
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     ports:
       - "5000:5000"
     environment:
       - MONGO_URI=mongodb://mongodb:27017/codemaster
+      - MONGO_DB_NAME=codemaster
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET_KEY=super-secret-jwt-key-minimum-32-characters-long
-      - JWT_REFRESH_SECRET=refresh-secret-key-also-32-characters-min
+      - JWT_SECRET_KEY=editorcode-jwt-secret-key-32chars!!
+      - JWT_REFRESH_SECRET=editorcode-refresh-secret-32chars!
       - FRONTEND_URL=http://localhost:5173
-      - CSRF_SECRET=csrf-secret-key-32chars
-      - FLASK_ENV=development
+      - FLASK_ENV=production
     depends_on:
-      - mongodb
-      - redis
-    volumes:
-      - ./backend:/app
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
 
   mongodb:
     image: mongo:6
@@ -37,16 +47,80 @@ services:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    restart: unless-stopped
 
   sandbox:
-    build: ./sandbox
+    build:
+      context: ./sandbox
+      dockerfile: Dockerfile
     ports:
       - "8080:8080"
+    restart: unless-stopped
 
 volumes:
   mongo_data:
+
+# version: '3.8'
+
+# services:
+#   frontend:
+#     build: ./frontend
+#     ports:
+#       - "5173:5173"
+#     depends_on:
+#       - backend
+#     environment:
+#       - VITE_API_URL=http://localhost:5000/api
+#     volumes:
+#       - ./frontend:/app
+#       - /app/node_modules
+
+#   backend:
+#     build: ./backend
+#     ports:
+#       - "5000:5000"
+#     environment:
+#       - MONGO_URI=mongodb://mongodb:27017/codemaster
+#       - REDIS_URL=redis://redis:6379
+#       - JWT_SECRET_KEY=super-secret-jwt-key-minimum-32-characters-long
+#       - JWT_REFRESH_SECRET=refresh-secret-key-also-32-characters-min
+#       - FRONTEND_URL=http://localhost:5173
+#       - CSRF_SECRET=csrf-secret-key-32chars
+#       - FLASK_ENV=development
+#     depends_on:
+#       - mongodb
+#       - redis
+#     volumes:
+#       - ./backend:/app
+
+#   mongodb:
+#     image: mongo:6
+#     ports:
+#       - "27017:27017"
+#     volumes:
+#       - mongo_data:/data/db
+
+#   redis:
+#     image: redis:7-alpine
+#     ports:
+#       - "6379:6379"
+
+#   sandbox:
+#     build: ./sandbox
+#     ports:
+#       - "8080:8080"
+
+# volumes:
+#   mongo_data:

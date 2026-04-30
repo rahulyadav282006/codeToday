@@ -1,111 +1,96 @@
-
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react'
 import api from '../services/api'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [token, setToken] = useState(() => localStorage.getItem('access_token'))
+  const [user,            setUser]            = useState(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [loading,         setLoading]         = useState(true)
+  const refreshTimer = useRef(null)
 
-  const clearAuth = useCallback(() => {
+  // ── helpers ──────────────────────────────────────────────────────────
+  const saveSession = (accessToken, refreshToken, userObj) => {
+    localStorage.setItem('access_token',  accessToken)
+    localStorage.setItem('refresh_token', refreshToken)
+    localStorage.setItem('user',          JSON.stringify(userObj))
+    setUser(userObj)
+    setIsAuthenticated(true)
+    scheduleRefresh(accessToken)
+  }
+
+  const clearSession = () => {
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
     localStorage.removeItem('user')
-    setToken(null)
+    clearTimeout(refreshTimer.current)
     setUser(null)
     setIsAuthenticated(false)
-  }, [])
+  }
 
-  const logout = useCallback(async () => {
+  const scheduleRefresh = (token) => {
+    clearTimeout(refreshTimer.current)
     try {
-      if (localStorage.getItem('access_token')) {
-        await api.post('/auth/logout')
+      const { exp } = JSON.parse(atob(token.split('.')[1]))
+      const ms = exp * 1000 - Date.now() - 60_000   // 1 min before expiry
+      if (ms > 0) {
+        refreshTimer.current = setTimeout(silentRefresh, ms)
       }
     } catch {}
-    clearAuth()
-  }, [clearAuth])
+  }
 
-  const refreshTokenSilently = useCallback(async () => {
+  const silentRefresh = async () => {
     const rt = localStorage.getItem('refresh_token')
-    if (!rt) { clearAuth(); return null }
+    if (!rt) return
     try {
-      const res = await api.post('/auth/refresh', { refreshToken: rt })
-      const { accessToken, refreshToken: newRt } = res.data
-      localStorage.setItem('access_token', accessToken)
-      if (newRt) localStorage.setItem('refresh_token', newRt)
-      setToken(accessToken)
-      return accessToken
+      const { data } = await api.post('/auth/refresh', { refreshToken: rt })
+      localStorage.setItem('access_token', data.accessToken)
+      if (data.refreshToken) localStorage.setItem('refresh_token', data.refreshToken)
+      scheduleRefresh(data.accessToken)
     } catch {
-      clearAuth()
-      return null
+      clearSession()
     }
-  }, [clearAuth])
+  }
 
-  // Verify token on app load
+  // ── boot: verify stored token ────────────────────────────────────────
   useEffect(() => {
-    const verify = async () => {
-      const storedToken = localStorage.getItem('access_token')
-      if (!storedToken) { setLoading(false); return }
+    const boot = async () => {
+      const token = localStorage.getItem('access_token')
+      if (!token) { setLoading(false); return }
+
       try {
-        const res = await api.get('/auth/verify')
-        setUser(res.data.user)
+        const { data } = await api.get('/auth/verify')
+        setUser(data.user)
         setIsAuthenticated(true)
-        setToken(storedToken)
+        scheduleRefresh(token)
       } catch (err) {
         if (err.response?.status === 401) {
-          const newToken = await refreshTokenSilently()
-          if (newToken) {
-            try {
-              const res2 = await api.get('/auth/verify')
-              setUser(res2.data.user)
-              setIsAuthenticated(true)
-            } catch {
-              clearAuth()
-            }
-          }
+          await silentRefresh()
         } else {
-          clearAuth()
+          clearSession()
         }
       }
       setLoading(false)
     }
-    verify()
+    boot()
+
+    return () => clearTimeout(refreshTimer.current)
   }, []) // eslint-disable-line
 
-  // Auto-refresh 24h before expiry
-  useEffect(() => {
-    if (!token) return
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]))
-      const expiresIn = payload.exp * 1000 - Date.now()
-      const refreshIn = expiresIn - 24 * 60 * 60 * 1000
-      if (refreshIn <= 0) { refreshTokenSilently(); return }
-      const timer = setTimeout(refreshTokenSilently, Math.max(refreshIn, 0))
-      return () => clearTimeout(timer)
-    } catch {}
-  }, [token]) // eslint-disable-line
-
-  // UNIFIED login — backend handles auto-register if user doesn't exist
+  // ── public API ───────────────────────────────────────────────────────
   const login = async (email, password, remember = false) => {
-    const res = await api.post('/auth/login', { email, password, remember })
-    const { accessToken, refreshToken: rt, user: u } = res.data
-    localStorage.setItem('access_token', accessToken)
-    localStorage.setItem('refresh_token', rt)
-    localStorage.setItem('user', JSON.stringify(u))
-    setToken(accessToken)
-    setUser(u)
-    setIsAuthenticated(true)
-    return u
+    const { data } = await api.post('/auth/login', { email, password, remember })
+    saveSession(data.accessToken, data.refreshToken, data.user)
+    return data.user
+  }
+
+  const logout = async () => {
+    try { await api.post('/auth/logout') } catch {}
+    clearSession()
   }
 
   return (
-    <AuthContext.Provider value={{
-      user, token, isAuthenticated, loading,
-      login, logout, refreshToken: refreshTokenSilently,
-    }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   )
@@ -116,7 +101,6 @@ export const useAuth = () => {
   if (!ctx) throw new Error('useAuth must be inside AuthProvider')
   return ctx
 }
-
 
 
 // 30 4 20 26
