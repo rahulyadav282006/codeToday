@@ -175,7 +175,7 @@ def refresh():
         # Store CSRF token in cache (try Redis first, fall back to in-memory)
         if m.redis:
             try:
-                m.redis.setex(f'csrf:{str(user['_id'])}', Config.CSRF_TOKEN_EXPIRES, csrf)
+                m.redis.setex(f"csrf:{str(user['_id'])}", Config.CSRF_TOKEN_EXPIRES, csrf)
             except Exception:
                 pass
         
