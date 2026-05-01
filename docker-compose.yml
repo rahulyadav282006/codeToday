@@ -1,4 +1,74 @@
- 
+
+
+
+services:
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=/api
+      - VITE_API_PROXY=http://backend:5000
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/codetoday
+      - MONGO_DB_NAME=codetoday
+      - CACHE_BACKEND=memory
+      - PYTHON_EXECUTOR_URL=http://sandbox:8080
+      - JWT_SECRET_KEY=editorcode-jwt-secret-key-32chars!!
+      - JWT_REFRESH_SECRET=editorcode-refresh-secret-32chars!
+      - FRONTEND_URL=http://localhost:5173
+      - FLASK_ENV=production
+      - NODE_ENV=production
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:6
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  sandbox:
+    build:
+      context: ./sandbox
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+volumes:
+  mongo_data:   
+
 
 
 # version: '3.8'
