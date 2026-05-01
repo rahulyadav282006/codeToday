@@ -24,19 +24,18 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - MONGO_URI=mongodb://mongodb:27017/codemaster
-      - MONGO_DB_NAME=codemaster
-      - REDIS_URL=redis://redis:6379
+      - MONGO_URI=mongodb://mongodb:27017/codetoday
+      - MONGO_DB_NAME=codetoday
+      - CACHE_BACKEND=memory
       - PYTHON_EXECUTOR_URL=http://sandbox:8080
       - JWT_SECRET_KEY=editorcode-jwt-secret-key-32chars!!
       - JWT_REFRESH_SECRET=editorcode-refresh-secret-32chars!
       - FRONTEND_URL=http://localhost:5173
       - FLASK_ENV=production
+      - NODE_ENV=production
     depends_on:
       mongodb:
         condition: service_healthy
-      redis:
-        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
       interval: 10s
@@ -59,17 +58,6 @@ services:
       start_period: 20s
     restart: unless-stopped
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    restart: unless-stopped
-
   sandbox:
     build:
       context: ./sandbox
@@ -77,6 +65,9 @@ services:
     ports:
       - "8080:8080"
     restart: unless-stopped
+
+volumes:
+  mongo_data:
 
 volumes:
   mongo_data:

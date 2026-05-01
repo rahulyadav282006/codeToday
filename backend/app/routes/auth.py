@@ -52,9 +52,17 @@ def _with_refresh_cookie(resp, refresh_token):
 def _success(user_id, email, name, remember=False, code=200):
     acc, ref = _make_tokens(str(user_id), email, remember)
     csrf = _make_csrf()
+    
+    # Store CSRF token in cache (try Redis first, fall back to in-memory)
     if m.redis:
         try:
             m.redis.setex(f'csrf:{str(user_id)}', Config.CSRF_TOKEN_EXPIRES, csrf)
+        except Exception:
+            pass
+    
+    if m.cache:
+        try:
+            m.cache.set(f'csrf:{str(user_id)}', csrf, Config.CSRF_TOKEN_EXPIRES)
         except Exception:
             pass
 
@@ -163,11 +171,20 @@ def refresh():
             return jsonify({'message': 'User not found'}), 401
         acc, new_rt = _make_tokens(str(user['_id']), user['email'])
         csrf = _make_csrf()
+        
+        # Store CSRF token in cache (try Redis first, fall back to in-memory)
         if m.redis:
             try:
                 m.redis.setex(f'csrf:{str(user['_id'])}', Config.CSRF_TOKEN_EXPIRES, csrf)
             except Exception:
                 pass
+        
+        if m.cache:
+            try:
+                m.cache.set(f'csrf:{str(user["_id"])}', csrf, Config.CSRF_TOKEN_EXPIRES)
+            except Exception:
+                pass
+        
         response = make_response(jsonify({'accessToken': acc}))
         response.headers['X-CSRF-Token'] = csrf
         _with_refresh_cookie(response, new_rt)
@@ -183,12 +200,21 @@ def refresh():
 @require_csrf
 def logout():
     token = (request.headers.get('Authorization', '') or '')[7:]
-    try:
-        if m.redis and token:
+    
+    # Blacklist token in cache (try Redis first, fall back to in-memory)
+    if m.redis and token:
+        try:
             m.redis.setex(f'bl:{token}', Config.ACCESS_TOKEN_EXPIRES, '1')
             m.redis.delete(f'csrf:{request.user_id}')
-    except Exception:
-        pass
+        except Exception:
+            pass
+    
+    if m.cache and token:
+        try:
+            m.cache.set(f'bl:{token}', '1', Config.ACCESS_TOKEN_EXPIRES)
+            m.cache.delete(f'csrf:{request.user_id}')
+        except Exception:
+            pass
 
     response = make_response(jsonify({'message': 'Logged out'}))
     response.set_cookie('refresh_token', '', httponly=True, samesite='Lax', secure=False, max_age=0, path='/api/auth')

@@ -15,10 +15,17 @@ def require_auth(f):
 
         token = auth[7:].strip()
 
-        # Optional blacklist check — skip gracefully if Redis is down
+        # Check blacklist from cache (or Redis if available)
         try:
             import app as m
-            if m.redis and m.redis.get(f'bl:{token}'):
+            # Try Redis first, fall back to in-memory cache
+            blacklisted = False
+            if m.redis:
+                blacklisted = m.redis.get(f'bl:{token}')
+            elif m.cache:
+                blacklisted = m.cache.get(f'bl:{token}')
+            
+            if blacklisted:
                 return jsonify({'message': 'Token revoked. Please login again.'}), 401
         except Exception:
             pass

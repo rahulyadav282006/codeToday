@@ -5,15 +5,21 @@ from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 import redis as redis_lib
 from config import Config
+from app.cache import get_cache
 
 db     = None
 redis  = None
+cache  = None
 
 def create_app():
-    global db, redis
+    global db, redis, cache
 
     app = Flask(__name__)
     app.config.from_object(Config)
+
+    # ── Initialize in-memory cache ────────────────────────────────────
+    cache = get_cache()
+    print("✓ In-memory cache initialized")
 
     # ── CORS: restrict origins to frontend and allow required headers ──────
     CORS(app, resources={r"/api/*": {"origins": Config.ALLOWED_ORIGINS}},
@@ -79,11 +85,13 @@ def create_app():
     from app.routes.courses  import courses_bp
     from app.routes.progress import progress_bp
     from app.routes.code     import code_bp
+    from app.routes.sessions import sessions_bp
 
     app.register_blueprint(auth_bp,      url_prefix='/api/auth')
     app.register_blueprint(courses_bp,   url_prefix='/api/courses')
     app.register_blueprint(progress_bp,  url_prefix='/api/progress')
     app.register_blueprint(code_bp,      url_prefix='/api/code')
+    app.register_blueprint(sessions_bp,  url_prefix='/api/sessions')
 
     @app.route('/api/health')
     def health():

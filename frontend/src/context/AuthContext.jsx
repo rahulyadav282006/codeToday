@@ -1,13 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react'
 import api from '../services/api'
+import { getDeviceId } from '../utils/deviceManager'
 
 const AuthContext = createContext(null)
+
+// Global BroadcastChannel for cross-tab auth sync
+let BC_AUTH = null
 
 export function AuthProvider({ children }) {
   const [user,            setUser]            = useState(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [loading,         setLoading]         = useState(true)
+  const [remoteLogoutMessage, setRemoteLogoutMessage] = useState(null)
   const refreshTimer = useRef(null)
+  const bcRef = useRef(null)
 
   // ── helpers ──────────────────────────────────────────────────────────
   const saveSession = (accessToken, userObj) => {
@@ -15,6 +21,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('user', JSON.stringify(userObj))
     setUser(userObj)
     setIsAuthenticated(true)
+    setRemoteLogoutMessage(null)
     scheduleRefresh(accessToken)
   }
 
@@ -51,9 +58,85 @@ export function AuthProvider({ children }) {
     }
   }
 
+  // ── BroadcastChannel setup ───────────────────────────────────────────
+  const setupBroadcastChannel = () => {
+    try {
+      if (!BC_AUTH && typeof BroadcastChannel !== 'undefined') {
+        BC_AUTH = new BroadcastChannel('auth_channel')
+        bcRef.current = BC_AUTH
+        window.BC_AUTH = BC_AUTH  // Global reference for api.js
+
+        BC_AUTH.onmessage = (event) => {
+          const msg = event.data
+          const currentDeviceId = getDeviceId()
+
+          switch (msg.type) {
+            case 'LOGIN':
+              // Another tab logged in
+              if (msg.device_id !== currentDeviceId) {
+                saveSession(msg.token, msg.user)
+              }
+              break
+
+            case 'LOGOUT':
+              // Another tab logged out
+              if (msg.device_id !== currentDeviceId) {
+                clearSession()
+              }
+              break
+
+            case 'LOGOUT_REMOTE':
+              // Current user was logged out from another device
+              clearSession()
+              setRemoteLogoutMessage(msg.reason || 'You were logged out from another device')
+              break
+
+            case 'REFRESH':
+              // Another tab refreshed token - sync if needed
+              if (msg.device_id !== currentDeviceId && msg.token) {
+                localStorage.setItem('access_token', msg.token)
+                scheduleRefresh(msg.token)
+              }
+              break
+
+            default:
+              break
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('BroadcastChannel not available, falling back to storage events:', error)
+      // Fallback to storage events
+      window.addEventListener('storage', handleStorageChange)
+    }
+  }
+
+  // ── Storage events fallback ──────────────────────────────────────────
+  const handleStorageChange = (event) => {
+    if (event.key === 'access_token') {
+      if (!event.newValue) {
+        // Token was removed in another tab
+        clearSession()
+      } else if (event.oldValue !== event.newValue) {
+        // Token was updated in another tab, refresh state
+        try {
+          const user = JSON.parse(localStorage.getItem('user'))
+          setUser(user)
+          setIsAuthenticated(true)
+          scheduleRefresh(event.newValue)
+        } catch {
+          clearSession()
+        }
+      }
+    }
+  }
+
   // ── boot: verify stored token ────────────────────────────────────────
   useEffect(() => {
     const boot = async () => {
+      // Setup cross-tab sync
+      setupBroadcastChannel()
+
       const token = localStorage.getItem('access_token')
       if (!token) { setLoading(false); return }
 
@@ -83,19 +166,64 @@ export function AuthProvider({ children }) {
     }
     boot()
 
-    return () => clearTimeout(refreshTimer.current)
+    // Listen for remote logout events from api.js
+    const handleRemoteLogout = (event) => {
+      clearSession()
+      setRemoteLogoutMessage(event.detail?.reason || 'You were logged out from another device')
+    }
+
+    window.addEventListener('logout_remote', handleRemoteLogout)
+
+    return () => {
+      clearTimeout(refreshTimer.current)
+      window.removeEventListener('logout_remote', handleRemoteLogout)
+      if (bcRef.current) {
+        try {
+          bcRef.current.close()
+        } catch {}
+      }
+    }
   }, []) // eslint-disable-line
 
   // ── public API ───────────────────────────────────────────────────────
   const login = async (email, password, remember = false) => {
     const { data } = await api.post('/auth/login', { email, password, remember })
+    const deviceId = getDeviceId()
+
     saveSession(data.accessToken, data.user)
+
+    // Broadcast login to other tabs
+    if (BC_AUTH) {
+      try {
+        BC_AUTH.postMessage({
+          type: 'LOGIN',
+          user: data.user,
+          token: data.accessToken,
+          device_id: deviceId,
+          timestamp: Date.now(),
+        })
+      } catch {}
+    }
+
     return data.user
   }
 
   const logout = async () => {
     try { await api.post('/auth/logout') } catch {}
+    const deviceId = getDeviceId()
+
     clearSession()
+
+    // Broadcast logout to other tabs
+    if (BC_AUTH) {
+      try {
+        BC_AUTH.postMessage({
+          type: 'LOGOUT',
+          device_id: deviceId,
+          timestamp: Date.now(),
+        })
+      } catch {}
+    }
   }
 
   return (
