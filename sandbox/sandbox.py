@@ -9,7 +9,7 @@ import tempfile
 import os
 import sys
 import signal
-import resource
+# import resource
  
 BLOCKED_IMPORTS = [
     'os', 'sys', 'subprocess', 'socket', 'urllib', 'http',

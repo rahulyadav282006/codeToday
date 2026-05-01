@@ -66,11 +66,9 @@ services:
       - "8080:8080"
     restart: unless-stopped
 
-volumes:
-  mongo_data:
 
-volumes:
-  mongo_data:
+
+
 
 # version: '3.8'
 
